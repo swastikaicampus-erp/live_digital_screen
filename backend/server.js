@@ -5,6 +5,9 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require("socket.io");
+const fs = require('fs');
+const path = require('path');
+const KEYS_FILE = path.join(__dirname, 'keys.json');
 
 // Firebase Admin Initialization
 try {
@@ -38,7 +41,7 @@ const io = new Server(server, {
 
 // Middleware - Image upload ke liye limit badhayi gayi hai
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); 
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // --- USER SCHEMA ---
@@ -54,7 +57,13 @@ const UserSchema = new mongoose.Schema({
     transactionId: { type: String, required: true },
     paymentScreenshot: { type: String }, // Base64 String
     isActive: { type: Boolean, default: false }, // Default False (Admin approval needed)
-    expiryDate: { type: Date }, 
+    expiryDate: { type: Date },
+    history: [{
+        plan: String,
+        price: Number,
+        screens: Number,
+        date: { type: Date, default: Date.now }
+    }],
     createdAt: { type: Date, default: Date.now }
 });
 // --- MASTER CONFIG SCHEMA ---
@@ -73,7 +82,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 // --- HELPER: Calculate Expiry ---
 const calculateExpiry = (planString) => {
-    const months = parseInt(planString) || 3; 
+    const months = parseInt(planString) || 3;
     const date = new Date();
     date.setMonth(date.getMonth() + months);
     return date;
@@ -82,32 +91,38 @@ const calculateExpiry = (planString) => {
 // --- 1. USER REGISTRATION API ---
 app.post('/api/users/register', async (req, res) => {
     try {
-        const { 
-            uid, 
-            fullName, 
-            email, 
-            shopName, 
-            phone, 
-            selectedPlan, 
-            planPrice, 
-            screens, 
-            transactionId, 
-            paymentScreenshot 
-        } = req.body;
-        
-        const newUser = new User({
-            uid, 
-            fullName, 
-            email, 
-            shopName, 
-            phone, 
-            selectedPlan, 
+        const {
+            uid,
+            fullName,
+            email,
+            shopName,
+            phone,
+            selectedPlan,
             planPrice,
-            screens: parseInt(screens) || 1, 
+            screens,
+            transactionId,
+            paymentScreenshot
+        } = req.body;
+
+        const newUser = new User({
+            uid,
+            fullName,
+            email,
+            shopName,
+            phone,
+            selectedPlan,
+            planPrice,
+            screens: parseInt(screens) || 1,
             transactionId,
             paymentScreenshot,
-            isActive: false, 
-            expiryDate: calculateExpiry(selectedPlan)
+            isActive: false,
+            expiryDate: calculateExpiry(selectedPlan),
+            history: [{ 
+                plan: selectedPlan,
+                price: Number(planPrice),
+                screens: Number(screens) || 1,
+                date: new Date()
+            }]
         });
 
         await newUser.save();
@@ -120,15 +135,15 @@ app.post('/api/users/register', async (req, res) => {
 app.get('/api/master/users', async (req, res) => {
     try {
         const users = await User.find({}).sort({ createdAt: -1 });
-        
+
         // Fix: user.screenCount ki jagah user.screens use karein
         const totalScreensDeployed = users.reduce((sum, user) => sum + (user.screens || 0), 0);
 
-        res.json({ 
-            success: true, 
-            count: users.length, 
-            totalScreens: totalScreensDeployed, 
-            users 
+        res.json({
+            success: true,
+            count: users.length,
+            totalScreens: totalScreensDeployed,
+            users
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -144,8 +159,8 @@ app.get('/api/users/me', async (req, res) => {
 
         // Note: Ideal case mein yahan Firebase Admin SDK se token verify hona chahiye
         // Par abhi ke liye hum UID se check kar rahe hain (agar aap token bhej rahe hain)
-        const token = authHeader.split(' ')[1]; 
-        
+        const token = authHeader.split(' ')[1];
+
         // Firebase token se UID nikalne ka logic (Recommended)
         const decodedToken = await admin.auth().verifyIdToken(token);
         const uid = decodedToken.uid;
@@ -169,7 +184,7 @@ app.put('/api/master/toggle-status/:uid', async (req, res) => {
         const user = await User.findOne({ uid: req.params.uid });
         if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-        user.isActive = !user.isActive; 
+        user.isActive = !user.isActive;
         await user.save();
 
         // --- NAYA LOGIC: Logout command bhejna agar deactivate kiya hai ---
@@ -179,10 +194,10 @@ app.put('/api/master/toggle-status/:uid', async (req, res) => {
             io.to(req.params.uid).emit('status_changed', { isActive: user.isActive });
         }
 
-        res.json({ 
-            success: true, 
-            message: `User ${user.isActive ? 'Activated' : 'Suspended'} successfully`, 
-            isActive: user.isActive 
+        res.json({
+            success: true,
+            message: `User ${user.isActive ? 'Activated' : 'Suspended'} successfully`,
+            isActive: user.isActive
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -222,40 +237,43 @@ app.put('/api/master/config', async (req, res) => {
 
 
 
-// Plan Renew
+// Plan Renew with History
 app.put('/api/master/renew-plan/:uid', async (req, res) => {
     try {
-        // Body se screenCount bhi nikaal lein
         const { selectedPlan, planPrice, screens } = req.body;
-        
-        // Update object taiyar karein
-        const updateFields = { 
-            selectedPlan, 
-            planPrice, 
-            isActive: true, 
-            expiryDate: calculateExpiry(selectedPlan) 
+
+        // 1. Naya History Object banayein
+        const newHistoryRecord = {
+            plan: selectedPlan,
+            price: Number(planPrice),
+            screens: Number(screens) || 1,
+            date: new Date()
         };
 
-        // Agar admin ne naya screens bheja hai, toh use update karein
-        if (screens !== undefined) {
-            updateFields.screens = parseInt(screens) || 1;
-        }
-
+        // 2. Database update karein ($push ka use karke)
         const updatedUser = await User.findOneAndUpdate(
             { uid: req.params.uid },
-            updateFields,
+            {
+                $set: {
+                    selectedPlan,
+                    planPrice,
+                    isActive: true,
+                    expiryDate: calculateExpiry(selectedPlan),
+                    screens: parseInt(screens) || 1
+                },
+                $push: { history: newHistoryRecord } // 🟢 History mein record add karein
+            },
             { new: true }
         );
-        
+
         if (!updatedUser) return res.status(404).json({ success: false, message: "User not found" });
 
-        // Real-time update bhejna (taaki app ko turant pata chal jaye)
         io.to(req.params.uid).emit('plan_updated', updatedUser);
-        
-        res.json({ 
-            success: true, 
-            message: "Plan Renewed & Screens Updated!", 
-            data: updatedUser 
+
+        res.json({
+            success: true,
+            message: "Plan Renewed & History Updated!",
+            data: updatedUser
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -269,6 +287,65 @@ app.delete('/api/master/delete-user/:uid', async (req, res) => {
         res.json({ success: true, message: "User deleted successfully" });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
+    }
+});
+// --- PAIRING KEY LOGIC USING FS ---
+
+const readKeys = () => {
+    try {
+        if (!fs.existsSync(KEYS_FILE)) return [];
+        const data = fs.readFileSync(KEYS_FILE, 'utf8').trim();
+        return data ? JSON.parse(data) : [];
+    } catch (err) {
+        console.error("Error reading keys file:", err);
+        return [];
+    }
+};
+
+// server.js update
+app.get('/api/master/generate-screen-key', (req, res) => {
+    try {
+        const { uid } = req.query; // Dashboard se aayi User ID
+        if (!uid) return res.status(400).json({ success: false, message: "User ID required" });
+
+        const newKey = "GB-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+        let keys = readKeys();
+
+        // Key ko specific UID ke saath bind kar diya
+        keys.push({
+            key: newKey,
+            uid: uid,
+            createdAt: new Date()
+        });
+
+        fs.writeFileSync(KEYS_FILE, JSON.stringify(keys, null, 2));
+        res.json({ success: true, key: newKey });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error" });
+    }
+});
+
+app.post('/api/screens/verify', async (req, res) => {
+    const { key } = req.body;
+    let keys = readKeys();
+
+    const keyData = keys.find(k => k.key === key);
+
+    if (keyData) {
+        // Sahi key milte hi wahi UID wapas bhejo jo master ne set ki thi
+        const responseUid = keyData.uid;
+
+        // Key delete karein (Single use)
+        const updatedKeys = keys.filter(k => k.key !== key);
+        fs.writeFileSync(KEYS_FILE, JSON.stringify(updatedKeys, null, 2));
+
+        res.json({
+            success: true,
+            userId: responseUid,
+            message: "Device Linked Successfully!"
+        });
+    } else {
+        res.status(400).json({ success: false, message: "Invalid Key" });
     }
 });
 
@@ -292,7 +369,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         // Socket mapping logic should be added here for precise device tracking
-        activeDevices.delete(socket.id); 
+        activeDevices.delete(socket.id);
         io.emit('online_devices_count', activeDevices.size);
         console.log(`[SOCKET] Disconnected: ${socket.id}`);
     });
