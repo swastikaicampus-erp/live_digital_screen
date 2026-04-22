@@ -117,7 +117,7 @@ app.post('/api/users/register', async (req, res) => {
             paymentScreenshot,
             isActive: false,
             expiryDate: calculateExpiry(selectedPlan),
-            history: [{ 
+            history: [{
                 plan: selectedPlan,
                 price: Number(planPrice),
                 screens: Number(screens) || 1,
@@ -346,6 +346,21 @@ app.post('/api/screens/verify', async (req, res) => {
         });
     } else {
         res.status(400).json({ success: false, message: "Invalid Key" });
+    }
+});
+
+// Keys file se specific UID ki keys return karo
+app.get('/api/screens/my-keys', async (req, res) => {
+    try {
+        const { uid } = req.query;
+        if (!uid) return res.status(400).json({ success: false, message: "UID required" });
+
+        const keys = readKeys();
+        const userKeys = keys.filter(k => k.uid === uid);
+
+        res.json({ success: true, keys: userKeys });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 
