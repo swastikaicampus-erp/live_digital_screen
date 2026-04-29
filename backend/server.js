@@ -206,38 +206,45 @@ app.put('/api/master/toggle-status/:uid', async (req, res) => {
 // --- 2. MASTER APIs (For Admin Panel) ---
 app.use('/api/plans', planRoutes);
 
-app.post('/api/master/login', async (req, res) => {
+// --- MASTER PASSWORD APIs ---
+// ❌ REMOVE this GET endpoint (it exposes the password)
+// app.get('/api/master/config', ...)
+
+// ✅ KEEP only a verify endpoint
+app.post('/api/master/verify-password', async (req, res) => {
     try {
         const { password } = req.body;
-
-        const config = await Config.findOne({
-            key: 'master_settings'
-        });
-
+        let config = await Config.findOne({ key: 'master_settings' });
         if (!config) {
-            return res.status(404).json({
-                success: false,
-                message: "Config not found"
-            });
+            config = new Config();
+            await config.save();
         }
 
         if (password === config.password) {
-            return res.json({
-                success: true,
-                message: "Login successful"
-            });
+            res.json({ success: true, message: "Access Granted" });
+        } else {
+            res.status(401).json({ success: false, message: "Wrong Password" });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ✅ Keep the PUT but add auth check
+app.put('/api/master/config', async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        let config = await Config.findOne({ key: 'master_settings' });
+
+        if (!config || oldPassword !== config.password) {
+            return res.status(401).json({ success: false, message: "Wrong current password" });
         }
 
-        return res.status(401).json({
-            success: false,
-            message: "Invalid password"
-        });
-
+        config.password = newPassword;
+        await config.save();
+        res.json({ success: true, message: "Password Updated!" });
     } catch (err) {
-        res.status(500).json({
-            success: false,
-            message: err.message
-        });
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 
