@@ -318,6 +318,29 @@ app.get('/api/master/generate-screen-key', (req, res) => {
     }
 });
 
+// --- MASTER PASSWORD VERIFY API ---
+app.post('/api/master/verify-password', async (req, res) => {
+    try {
+        const { password } = req.body;
+        if (!password) {
+            return res.status(400).json({ success: false, message: "Password required" });
+        }
+
+        let config = await Config.findOne({ key: 'master_settings' });
+
+        // Agar DB mein config nahi hai, toh default password se check karo
+        const correctPassword = config ? config.password : 'ADMIN@SIGNAGE#2025';
+
+        if (password === correctPassword) {
+            res.json({ success: true, message: "Access Granted" });
+        } else {
+            res.status(401).json({ success: false, message: "Wrong Password" });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 app.post('/api/screens/verify', async (req, res) => {
     const { key } = req.body;
     let keys = readKeys();
