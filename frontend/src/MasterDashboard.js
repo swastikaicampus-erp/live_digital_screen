@@ -45,8 +45,8 @@ const MasterDashboard = () => {
             setLoading(false);
         }
     };
-    const BASE_URL = 'https://my-signage-backend.onrender.com';
-    //const BASE_URL = 'http://localhost:5000';
+    //const BASE_URL = 'https://my-signage-backend.onrender.com';
+    const BASE_URL = 'http://localhost:5000';
 
     useEffect(() => {
         const auth = sessionStorage.getItem('master_auth');

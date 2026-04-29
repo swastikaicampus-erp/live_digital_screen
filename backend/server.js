@@ -204,31 +204,9 @@ app.put('/api/master/toggle-status/:uid', async (req, res) => {
     }
 });
 // --- 2. MASTER APIs (For Admin Panel) ---
-app.use('/api/plans', planRoutes);
 
-// --- MASTER PASSWORD APIs ---
-// ❌ REMOVE this GET endpoint (it exposes the password)
-// app.get('/api/master/config', ...)
 
-// ✅ KEEP only a verify endpoint
-app.post('/api/master/verify-password', async (req, res) => {
-    try {
-        const { password } = req.body;
-        let config = await Config.findOne({ key: 'master_settings' });
-        if (!config) {
-            config = new Config();
-            await config.save();
-        }
 
-        if (password === config.password) {
-            res.json({ success: true, message: "Access Granted" });
-        } else {
-            res.status(401).json({ success: false, message: "Wrong Password" });
-        }
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
 
 // ✅ Keep the PUT but add auth check
 app.put('/api/master/config', async (req, res) => {
