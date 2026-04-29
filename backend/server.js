@@ -206,17 +206,38 @@ app.put('/api/master/toggle-status/:uid', async (req, res) => {
 // --- 2. MASTER APIs (For Admin Panel) ---
 app.use('/api/plans', planRoutes);
 
-// --- MASTER PASSWORD APIs ---
-app.get('/api/master/config', async (req, res) => {
+app.post('/api/master/login', async (req, res) => {
     try {
-        let config = await Config.findOne({ key: 'master_settings' });
+        const { password } = req.body;
+
+        const config = await Config.findOne({
+            key: 'master_settings'
+        });
+
         if (!config) {
-            config = new Config();
-            await config.save();
+            return res.status(404).json({
+                success: false,
+                message: "Config not found"
+            });
         }
-        res.json({ success: true, password: config.password });
+
+        if (password === config.password) {
+            return res.json({
+                success: true,
+                message: "Login successful"
+            });
+        }
+
+        return res.status(401).json({
+            success: false,
+            message: "Invalid password"
+        });
+
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
     }
 });
 
