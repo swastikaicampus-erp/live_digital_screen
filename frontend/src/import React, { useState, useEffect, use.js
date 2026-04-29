@@ -5,7 +5,7 @@ import { FaArrowRotateRight, FaArrowRotateLeft, FaPlay, FaPause } from "react-ic
 import { RxTrackNext, RxTrackPrevious } from "react-icons/rx";
 
 // --- CONFIGURATION ---
-const BACKEND_URL = 'http://76.13.192.122:5000';
+const BACKEND_URL = 'https://my-signage-backend.onrender.com';
 const socket = io(BACKEND_URL);
 const HIDE_TIMEOUT_MS = 4000; // 4 seconds of inactivity hides controls
 

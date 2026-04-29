@@ -6,7 +6,7 @@ import { RxTrackNext, RxTrackPrevious } from "react-icons/rx";
 import { FaPlay, FaPause } from "react-icons/fa";
 
 // --- CONFIGURATION ---
-const BACKEND_URL = 'http://76.13.192.122:5000';
+const BACKEND_URL = 'https://my-signage-backend.onrender.com';
 const API_ACTIVE_PLAYLIST_URL = `${BACKEND_URL}/api/playlists/active`;
 const MY_DEVICE_ID = 'SCREEN-01'; 
 const socket = io(BACKEND_URL);

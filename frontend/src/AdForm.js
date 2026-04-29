@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { auth } from './firebase'; 
 
-const BACKEND_URL = 'http://76.13.192.122:5000/api/ads';
+const BACKEND_URL = 'https://my-signage-backend.onrender.com/api/ads';
 
 function AdForm() {
     const [title, setTitle] = useState('');

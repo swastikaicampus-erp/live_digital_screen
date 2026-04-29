@@ -4,7 +4,6 @@ import io from 'socket.io-client';
 import { FaArrowRotateRight, FaPlay, FaPause, FaEyeSlash, FaLock } from "react-icons/fa6"; 
 import { RxTrackNext } from "react-icons/rx";
 
-// Har tab ke liye unique ID taaki alag alag screens ban sakein
 const getTabId = () => {
   let id = sessionStorage.getItem('tab_unique_id');
   if (!id) {
@@ -15,7 +14,7 @@ const getTabId = () => {
 };
 
 const TAB_ID = getTabId();
-const BACKEND_URL = 'http://76.13.192.122:5000'; 
+const BACKEND_URL = 'https://my-signage-backend.onrender.com'; 
 const socket = io(BACKEND_URL);
 const HIDE_TIMEOUT_MS = 5000;
 

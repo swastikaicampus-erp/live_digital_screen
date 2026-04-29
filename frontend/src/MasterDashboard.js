@@ -11,10 +11,9 @@ const MasterDashboard = () => {
     const [newPlan, setNewPlan] = useState({ plan: '', price: '', screens: 1 });
 
     const [loading, setLoading] = useState(false);
-    const [masterKey, setMasterKey] = useState(''); // Database wala password yahan load hoga
-    const [newMasterKey, setNewMasterKey] = useState(''); // Edit karne ke liye
-    const [isEditingKey, setIsEditingKey] = useState(false); // Modal control ke liye
 
+    const [newMasterKey, setNewMasterKey] = useState(''); // ← yeh add karo
+    const [isEditingKey, setIsEditingKey] = useState(false);
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [passwordInput, setPasswordInput] = useState('');
     const [selectedUserHistory, setSelectedUserHistory] = useState(null); // History modal ke liye
@@ -23,10 +22,10 @@ const MasterDashboard = () => {
     const [isKeyModalOpen, setIsKeyModalOpen] = useState(false); // Modal control ke liye
     const [selectedUser, setSelectedUser] = useState(null);
 
-   const handleViewHistory = (user) => {
-    setSelectedUser(user);
-    setSelectedUserHistory(user.history || []); 
-};
+    const handleViewHistory = (user) => {
+        setSelectedUser(user);
+        setSelectedUserHistory(user.history || []);
+    };
     const generateNewScreenKey = async (uid) => {
         setLoading(true);
         try {
@@ -46,24 +45,35 @@ const MasterDashboard = () => {
             setLoading(false);
         }
     };
-    const BASE_URL = 'http://76.13.192.122:5000';
-    // const BASE_URL = 'http://localhost:5000';
+    const BASE_URL = 'https://my-signage-backend.onrender.com';
+    //const BASE_URL = 'http://localhost:5000';
 
     useEffect(() => {
         const auth = sessionStorage.getItem('master_auth');
         if (auth === 'true') setIsAuthorized(true);
     }, []);
-    useEffect(() => {
-        const fetchConfig = async () => {
-            try {
-                const res = await fetch(`${BASE_URL}/api/master/config`);
-                const data = await res.json();
-                if (data.success) setMasterKey(data.password);
-            } catch (err) { console.error("Config Fetch Error:", err); }
-        };
-        fetchConfig();
-    }, []);
 
+
+    // ✅ REPLACE with:
+    const updateMasterKey = async () => {
+        if (!newMasterKey) return alert("Please enter a new password");
+        const currentPass = prompt("Enter current password to confirm:");
+        if (!currentPass) return;
+        try {
+            const res = await fetch(`${BASE_URL}/api/master/config`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldPassword: currentPass, newPassword: newMasterKey })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert("✅ Master Key Updated!");
+                setIsEditingKey(false);
+            } else {
+                alert("❌ " + data.message);
+            }
+        } catch (err) { alert("Update failed"); }
+    };
     useEffect(() => {
         if (isAuthorized) {
             fetchUsers();
@@ -102,32 +112,34 @@ const MasterDashboard = () => {
         }, 0)
     };
 
-    const updateMasterKey = async () => {
-        if (!newMasterKey) return alert("Please enter a new password");
-        try {
-            const res = await fetch(`${BASE_URL}/api/master/config`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password: newMasterKey })
-            });
-            const data = await res.json();
-            if (data.success) {
-                alert("✅ Master Key Updated!");
-                setMasterKey(newMasterKey);
-                setIsEditingKey(false);
-            }
-        } catch (err) { alert("Update failed"); }
-    };
 
-    const handlePasswordSubmit = (e) => {
+
+    const handlePasswordSubmit = async (e) => {
         e.preventDefault();
-        // MASTER_PASSWORD ki jagah masterKey use karein
-        if (passwordInput === masterKey) {
-            setIsAuthorized(true);
-            sessionStorage.setItem('master_auth', 'true');
-        } else {
-            alert("❌ Incorrect Master Key!");
-            setPasswordInput('');
+
+        if (!passwordInput.trim()) {
+            alert("❌ Password enter karein!");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${BASE_URL}/api/master/verify-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: passwordInput })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                setIsAuthorized(true);
+                sessionStorage.setItem('master_auth', 'true');
+            } else {
+                alert("❌ Incorrect Master Key!");
+                setPasswordInput('');
+            }
+        } catch (err) {
+            alert("❌ Server se connect nahi ho paya!");
         }
     };
 
@@ -284,7 +296,12 @@ const MasterDashboard = () => {
                     <form onSubmit={handlePasswordSubmit} className="modal" style={{ textAlign: 'center' }}>
                         <h2 style={{ color: '#58a6ff' }}>🛡️ Admin Login</h2>
                         <input className="search-input" style={{ margin: '20px 0' }} type="password" placeholder="Enter Master Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} autoFocus />
-                        <button type="submit" className="action-btn btn-primary btn-full">Unlock Dashboard</button>
+                        <button
+                            type="submit"
+                            className="action-btn btn-primary btn-full"
+                        >
+                            Unlock Dashboard
+                        </button>
                     </form>
                 </div>
             )}
@@ -344,12 +361,12 @@ const MasterDashboard = () => {
 
                                         <div className="actions-group">
                                             <button
-    onClick={() => handleViewHistory(u)} // Ab ye function sahi se call hoga
-    className="action-btn btn-outline btn-full"
-    style={{ borderColor: '#58a6ff', color: '#58a6ff', marginBottom: '5px' }}
->
-    📜 View Payment History
-</button>
+                                                onClick={() => handleViewHistory(u)} // Ab ye function sahi se call hoga
+                                                className="action-btn btn-outline btn-full"
+                                                style={{ borderColor: '#58a6ff', color: '#58a6ff', marginBottom: '5px' }}
+                                            >
+                                                📜 View Payment History
+                                            </button>
 
                                             <button onClick={() => toggleStatus(u.uid)} className="action-btn btn-outline" style={{ color: u.isActive ? '#f85149' : '#48bb78' }}>
                                                 {u.isActive ? 'Suspend' : 'Activate'}

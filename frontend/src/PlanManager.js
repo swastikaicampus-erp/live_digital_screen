@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const BACKEND_URL = 'http://76.13.192.122:5000';
+const BACKEND_URL = 'https://my-signage-backend.onrender.com';
 
 function PlanManager() {
     const [plans, setPlans] = useState([]);

@@ -4,7 +4,7 @@ import { auth } from './firebase';
 import { sendPasswordResetEmail } from "firebase/auth";
 import io from 'socket.io-client';
 
-const BACKEND_URL = 'http://76.13.192.122:5000';
+const BACKEND_URL = 'https://my-signage-backend.onrender.com';
 const api = axios.create({ baseURL: BACKEND_URL });
 const socket = io(BACKEND_URL);
 
