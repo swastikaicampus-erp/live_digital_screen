@@ -248,19 +248,6 @@ app.put('/api/master/config', async (req, res) => {
     }
 });
 
-app.put('/api/master/config', async (req, res) => {
-    try {
-        const { password } = req.body;
-        const config = await Config.findOneAndUpdate(
-            { key: 'master_settings' },
-            { password: password },
-            { new: true, upsert: true }
-        );
-        res.json({ success: true, message: "Master Password Updated!" });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
 
 
 
